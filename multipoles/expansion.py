@@ -12,7 +12,7 @@ class MultipoleExpansion(object):
     based on the multipole expansion.
     """
 
-    def __init__(self, charge_dist, l_max, exterior=None, interior=None):
+    def __init__(self, charge_dist, l_max, exterior=None, interior=None, potential_im_tolerance=0.00001):
         """Create a MultipoleExpansion object for a given charge or mass distribution.
 
         Args:
@@ -42,6 +42,14 @@ class MultipoleExpansion(object):
                     If false, interior expansion will be used.
 
             interior (bool): syntactic override for exterior expansion parameter
+
+            potential_im_tolerance (float): Tolerance for the imaginary part of the
+                    electrostatic potential (default=0.00001).
+                    The potential should be perfectly real, but numerical effects can make the
+                    imaginary part non-zero. This parameter dictates how high that part can be
+                    before it is considered an error. The default value should not trigger
+                    exceptions if the code is correct, except maybe for exceptional charge
+                    distributions. Mostly useful for diagnostics.
 
         ## Examples
 
@@ -119,6 +127,8 @@ class MultipoleExpansion(object):
         self.interior = interior
 
         self._assert_charge_dist()
+
+        self.potential_im_tolerance = max(potential_im_tolerance,0)
 
         if charge_dist['discrete']:
             self.charges = list(charge_dist['charges'])
@@ -251,7 +261,7 @@ class MultipoleExpansion(object):
                 Y_lm = sph_harm(m, l, phi[mask], theta[mask])
                 q_lm = self.multipole_moments[(l, m)]
                 phi_l += np.sqrt(4 * np.pi / (2 * l + 1)) * q_lm * Y_lm / r[mask] ** (l + 1)
-            mp_contribs.append(phi_l.real)
+            mp_contribs.append(phi_l)
 
         return sum(mp_contribs)
 
@@ -337,6 +347,9 @@ class MultipoleExpansion(object):
                     phi_l += np.sqrt(4 * np.pi / (2 * l + 1)) * q_lm * Y_lm / r ** (l + 1)
                 else:
                     phi_l += np.sqrt(4 * np.pi / (2 * l + 1)) * q_lm * Y_lm * r ** l
+            if (abs(phi_l.imag) > self.potential_im_tolerance):
+                # The potential should be real. If there is an imaginary component something is off.
+                raise InvalidPotentialException("Only real-valued electrostatic potentials allowed.")
             mp_contribs.append(phi_l.real)
         return mp_contribs
 
@@ -363,7 +376,7 @@ class MultipoleExpansion(object):
                 else:
                     q_lm += q / r ** (l + 1) * np.conj(Y_lm)
             q_lm *= prefac
-            return q_lm.real
+            return q_lm
         else:
             R, Phi, Theta = self.internal_coords_spherical
             Y_lm = sph_harm(m, l, Phi, Theta)
@@ -406,6 +419,9 @@ class InvalidChargeDistributionException(Exception):
 class InvalidExpansionException(Exception):
     pass
 
+
+class InvalidPotentialException(Exception):
+    pass
 
 def cartesian_to_spherical(*coords):
     X, Y, Z = coords
