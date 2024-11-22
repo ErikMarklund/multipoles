@@ -12,7 +12,7 @@ class MultipoleExpansion(object):
     based on the multipole expansion.
     """
 
-    def __init__(self, charge_dist, l_max, exterior=None, interior=None, potential_im_tolerance=0.00001):
+    def __init__(self, charge_dist, l_max, exterior=None, interior=None, bCenter=False, potential_im_tolerance=0.00001):
         """Create a MultipoleExpansion object for a given charge or mass distribution.
 
         Args:
@@ -42,6 +42,12 @@ class MultipoleExpansion(object):
                     If false, interior expansion will be used.
 
             interior (bool): syntactic override for exterior expansion parameter
+
+            bCenter (bool): Expand around center of charge (default=False).
+                    Different conventions exist, e.g., expansion around center of mass.
+                    Using bCenter=True can complicate (although not preclude) benchmarking against
+                    explicit evaluation of the potential using direct summation of the contributions
+                    from all charges.
 
             potential_im_tolerance (float): Tolerance for the imaginary part of the
                     electrostatic potential (default=0.00001).
@@ -159,9 +165,12 @@ class MultipoleExpansion(object):
             q_abs = np.sum(np.abs(rho)) * self.dvol
             self.center_of_charge = np.array([np.sum(np.abs(rho) * c) for c in [X, Y, Z]]) * self.dvol / q_abs
 
-            # The internal coordinate system is centered at the center of charge
-            self.internal_coords = tuple(c - self.center_of_charge[k] for c, k in zip([X, Y, Z], range(3)))
-            self.internal_coords_spherical = cartesian_to_spherical(*self.internal_coords)
+            if bCenter:
+                # The internal coordinate system is centered at the center of charge
+                self.internal_coords = tuple(c - self.center_of_charge[k] for c, k in zip([X, Y, Z], range(3)))
+            else:
+                self.internal_coords = tuple(c for c in zip([X, Y, Z]))
+                self.internal_coords_spherical = cartesian_to_spherical(*self.internal_coords)
 
         if l_max < 0 or l_max != int(l_max):
             raise ValueError("'lmax' must be integer >= 0.")
